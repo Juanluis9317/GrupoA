@@ -1,12 +1,11 @@
-/*
-=========================================================================
- SCRIPT DE CREACIÓN DE BASE DE DATOS: Academia2022 (v2 - Corregido)
-=========================================================================
+
+ SCRIPT DE CREACIÓN DE BASE DE DATOS: Academia2022
+
+
  Propósito: Genera la estructura completa de la base de datos.
  Corrección: Añadidos 'GO' después de los 'PRINT' que preceden a
              CREATE SCHEMA, CREATE VIEW, CREATE FUNCTION, etc.,
              para evitar el error 111.
-=========================================================================
 */
 USE master;
 GO
@@ -33,7 +32,7 @@ GO
 
 -- 3. Creación de Esquemas
 PRINT 'Creando esquemas...';
-GO -- <<-- CORRECCIÓN: GO añadido aquí
+GO 
 
 CREATE SCHEMA Academico; -- alumnos, cursos, carreras, matrículas
 GO
@@ -45,10 +44,10 @@ CREATE SCHEMA Lab;       -- objetos auxiliares de práctica
 GO
 PRINT 'Esquemas (Academico, Seguridad, App, Lab) creados.';
 
--- =========================================================================
+
 -- 4. Creación de Tablas Base y Restricciones
--- (Estas no necesitan GOs extra porque CREATE TABLE no tiene esa restricción)
--- =========================================================================
+
+
 
 PRINT 'Creando tabla Academico.Alumnos...';
 CREATE TABLE Academico.Alumnos(
@@ -122,9 +121,9 @@ CREATE TABLE Academico.AlumnoIdiomas(
 );
 GO
 
--- =========================================================================
+
 -- 5. Modificaciones DDL (Columnas calculadas, renombradas, secuencias)
--- =========================================================================
+
 
 PRINT 'Añadiendo columna calculada NombreCompleto a Alumnos...';
 ALTER TABLE Academico.Alumnos
@@ -152,7 +151,7 @@ PRINT 'Columna renombrada y constraint CK_Cursos_CreditosECTS recreado.';
 GO
 
 PRINT 'Creando Secuencia para Códigos de Curso...';
-GO -- <<-- CORRECCIÓN: GO añadido aquí
+GO 
 CREATE SEQUENCE Academico.SeqCodigoCurso AS INT START WITH 1000 INCREMENT BY 1;
 GO
 ALTER TABLE Academico.Cursos
@@ -160,10 +159,9 @@ ADD CursoCodigo INT NOT NULL
     CONSTRAINT DF_Cursos_CursoCodigo DEFAULT (NEXT VALUE FOR Academico.SeqCodigoCurso);
 PRINT 'Columna CursoCodigo añadida a Cursos con DEFAULT de secuencia.';
 GO
-
--- =========================================================================
+ 
 -- 6. Índices Adicionales
--- =========================================================================
+
 
 PRINT 'Creando índice optimizado en Matriculas (CursoID, MatriculaPeriodo)...';
 CREATE INDEX IX_Matriculas_Cursos_MatriculaPeriodo
@@ -171,9 +169,8 @@ ON Academico.Matriculas(CursoID, MatriculaPeriodo)
 INCLUDE (AlumnoID);
 GO
 
--- =========================================================================
 -- 7. Objetos de Esquema Lab (JSON, SPARSE, Temporal)
--- =========================================================================
+
 
 PRINT 'Creando Lab.Eventos (con CHECK ISJSON)...';
 CREATE TABLE Lab.Eventos(
@@ -206,12 +203,9 @@ SET (SYSTEM_VERSIONING = ON (HISTORY_TABLE = Lab.Eventos_Hist));
 PRINT 'Tabla Lab.Eventos_Hist creada y versionado habilitado.';
 GO
 
--- =========================================================================
--- 8. Vistas (Capa de Aplicación)
--- =========================================================================
 
 PRINT 'Creando vista App.vw_ResumenAlumno...';
-GO -- <<-- CORRECCIÓN: GO añadido aquí
+GO 
 CREATE VIEW App.vw_ResumenAlumno
 AS
 SELECT a.AlumnoID, a.NombreCompleto, a.AlumnoEdad, a.CarreraID
@@ -220,7 +214,7 @@ WHERE a.AlumnoActivo = 1;
 GO
 
 PRINT 'Creando vista indexada App.vw_MatriculasPorCurso...';
-GO -- <<-- CORRECCIÓN: GO añadido aquí
+GO 
 CREATE VIEW App.vw_MatriculasPorCurso
 WITH SCHEMABINDING
 AS
@@ -233,26 +227,25 @@ ON App.vw_MatriculasPorCurso(CursoID);
 PRINT 'Vista indexada creada exitosamente.';
 GO
 
--- =========================================================================
+
 -- 9. Seguridad (DCL - Logins, Usuarios, Roles, Permisos)
--- =========================================================================
+
 
 PRINT 'Configurando seguridad (Login, User, Roles)...';
 GO
 USE master;
 IF SUSER_ID('app_ro') IS NOT NULL DROP LOGIN app_ro;
-CREATE LOGIN app_ro WITH PASSWORD = 'Str0ng_P@ssw0rd!'; -- Cambiar en producción
+CREATE LOGIN app_ro WITH PASSWORD = 'Str0ng_P@ssw0rd!'; 
 GO
 USE Academia2022;
 IF USER_ID('app_ro') IS NOT NULL DROP USER app_ro;
 CREATE USER app_ro FOR LOGIN app_ro WITH DEFAULT_SCHEMA = App;
 GO
--- Permiso básico de lectura
 EXEC sp_addrolemember N'db_datareader', N'app_ro';
 GO
--- Rol personalizado para reportes
+
 PRINT 'Creando rol rol_reportes...';
-GO -- <<-- CORRECCIÓN: GO añadido aquí
+GO 
 CREATE ROLE rol_reportes;
 PRINT 'Rol rol_reportes creado.';
 GO
@@ -270,35 +263,32 @@ GO
 
 -- Sinónimo para compatibilidad
 PRINT 'Creando sinónimo dbo.Matriculas...';
-GO -- <<-- CORRECCIÓN: GO añadido aquí
+
+GO 
 CREATE SYNONYM dbo.Matriculas FOR Academico.Matriculas;
 PRINT 'Sinónimo dbo.Matriculas creado.';
 GO
 
--- =========================================================================
--- 10. Seguridad Avanzada (RLS - Row Level Security)
--- =========================================================================
+
 PRINT 'Configurando Row-Level Security (RLS)...';
-GO -- <<-- CORRECCIÓN: GO añadido aquí
--- RLS debe estar en su propio esquema de seguridad
+GO 
+ 
 CREATE SCHEMA Sec;
 GO
 
 PRINT 'Creando función de predicado RLS...';
-GO -- <<-- CORRECCIÓN: GO añadido aquí
+GO
 CREATE FUNCTION Sec.fn_AlumnosActivos(@Activo bit)
 RETURNS TABLE
 WITH SCHEMABINDING
 AS
--- El predicado de filtro debe ser 1 (permite) o 0 (deniega)
--- Asumimos que la app (app_ro) solo debe ver activos.
--- Para otros usuarios (ej. 'dbo') no se aplica filtro.
+
 RETURN SELECT 1 AS AllowRow
        WHERE @Activo = 1 OR USER_NAME() <> 'app_ro';
 GO
 
 PRINT 'Creando política de seguridad RLS...';
-GO -- <<-- CORRECCIÓN: GO añadido aquí
+GO 
 CREATE SECURITY POLICY Sec.Policy_Alumnos_Activos
 ADD FILTER PREDICATE Sec.fn_AlumnosActivos(AlumnoActivo)
 ON Academico.Alumnos
@@ -306,21 +296,21 @@ WITH (STATE = ON);
 PRINT 'Política de seguridad RLS Sec.Policy_Alumnos_Activos aplicada a Alumnos.';
 GO
 
--- =========================================================================
+
 -- 11. Auditoría (Opcional - Requiere permisos de servidor)
--- =========================================================================
+
 
 PRINT N'--- Configurando Auditoría (Requiere permisos de Servidor) ---';
 PRINT N'ADVERTENCIA: Verifique que la ruta C:\SQLAudit\ exista o edite el script.';
 USE master;
 GO
 
--- <<-- CORRECCIÓN: Añadido IF NOT EXISTS para evitar error si ya existe
+
 IF NOT EXISTS (SELECT 1 FROM sys.server_audits WHERE name = 'Audit_Academia')
 BEGIN
     PRINT 'Creando Auditoría de Servidor...';
     CREATE SERVER AUDIT Audit_Academia
-    TO FILE (FILEPATH = 'C:\SQLAudit\'); -- !! AJUSTAR RUTA !!
+    TO FILE (FILEPATH = 'C:\SQLAudit\');
 END
 ELSE
 BEGIN
@@ -334,14 +324,14 @@ GO
 
 USE Academia2022;
 GO
--- <<-- CORRECCIÓN: Añadido IF NOT EXISTS para evitar error si ya existe
+
 IF NOT EXISTS (SELECT 1 FROM sys.database_audit_specifications WHERE name = 'Audit_AcademiaDB')
 BEGIN
     PRINT 'Creando Especificación de Auditoría de Base de Datos...';
     CREATE DATABASE AUDIT SPECIFICATION Audit_AcademiaDB
     FOR SERVER AUDIT Audit_Academia
-    ADD (DATABASE_OBJECT_PERMISSION_CHANGE_GROUP), -- Cambios de GRANT/DENY/REVOKE
-    ADD (FAILED_DATABASE_AUTHENTICATION_GROUP) -- Logins fallidos a esta DB
+    ADD (DATABASE_OBJECT_PERMISSION_CHANGE_GROUP), 
+    ADD (FAILED_DATABASE_AUTHENTICATION_GROUP) 
     WITH (STATE = ON);
 END
 ELSE
@@ -352,7 +342,3 @@ END
 GO
 PRINT 'Especificación de Auditoría de Base de Datos activada.';
 GO
-
-PRINT '=====================================================';
-PRINT ' Script DDL de Academia2022 completado exitosamente.';
-PRINT '=====================================================';
