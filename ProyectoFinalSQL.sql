@@ -13,6 +13,8 @@ CREATE TABLE Academico.CursosAprobados (
 	Id_Curso INT NOT NULL,
 	Id_Alumno INT NOT NULL,
 	Aprobado BIT NOT NULL DEFAULT 0,
+    FechaCreacion DATETIME DEFAULT GETDATE(),
+    FechaAprobado DATETIME NULL,
 	CONSTRAINT Fk_CursosAproados_Cursos FOREIGN KEY (Id_Curso) REFERENCES Academico.Cursos(CursoID),
 	CONSTRAINT Fk_CursosAprobados_Alumnos FOREIGN KEY (Id_Alumno) REFERENCES Academico.ALumnos(AlumnoID),
 	CONSTRAINT UQ_CursosAprobados UNIQUE (Id_Curso, Id_Alumno)
@@ -32,6 +34,7 @@ CREATE TABLE Academico.PreRequisitos(
 );
 GO
 
+
 -- TRIGGER para crear automaticamente una tupla de Cursos Aprobados
 CREATE TRIGGER tr_AgregarPreRequisito
 ON Academico.Cursos
@@ -39,9 +42,8 @@ AFTER INSERT
 AS
 BEGIN
     SET NOCOUNT ON;
-
     -- Insertar prerequisito vac�o para cada curso nuevo
-    INSERT INTO Academico.PreRequisitos (Id_CursoRequisito, Id_CursoActual)
+    INSERT INTO Academico.PreRequisitos (Id_CursoRequisito, Id_CursoActual, CreditosNecesarios)
     SELECT NULL, i.CursoID
     FROM INSERTED i;
 END;
@@ -68,7 +70,6 @@ GO
 -- Porque?: Ayuda a buscar si los cursos se repiten por carrera lo que mantiene la normalizacion y agiliza consultas
 
 
-
 -- Crea una tabla que suma los creditos totales de los cursos aprobados
 CREATE TABLE Academico.CreditosAlumnos(
     IdCreditosAlumno INT PRIMARY KEY IDENTITY,
@@ -80,7 +81,6 @@ CREATE TABLE Academico.CreditosAlumnos(
     CONSTRAINT UQ_CreditosAlumnos UNIQUE (Id_Carrera, Id_Alumno)  
 );
 GO
-
 
 
 -- Actualiza el total de datos por alunos cuando este aprueba un curso
@@ -116,5 +116,3 @@ BEGIN
     AND d.Aprobado = 0 AND i.Aprobado = 1;
 END;
 GO
--- Porque: Automatiza procesos en la base de datos evitando que el usuario cometa errores
-
