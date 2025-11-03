@@ -1,78 +1,8 @@
-
-
-
--- Triger para cambiar el valor Aprobado en el curso de un alumno
-CREATE TRIGGER tr_ActualizarEstadoAprobadoDesdeNota
-ON Academico.AlumnosNotas
-AFTER UPDATE
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    UPDATE ca
-    SET ca.Aprobado = 1,
-        ca.FechaAprobado = GETDATE()
-    FROM Academico.CursosAprobados ca
-    JOIN INSERTED i ON i.TotalNota >= 61
-    JOIN Academico.Matriculas m ON m.IdMatricula = i.Id_Matricula
-    WHERE ca.Id_Curso = m.CursoID
-      AND ca.Id_Alumno = m.AlumnoID
-      AND ca.Aprobado = 0;
-END;
-GO
--- Porque?: Automatiza el proceso de saber si un alumno Aprobo o no dicho curso
--- Evita posibles errores por el usuario
--- Mantiene la logica del sistema de cursos
-
-
--- Creamos una tabla que contiene las actividades hechas por un alumno en el transcurso del ciclo
-CREATE TABLE Academico.CalendarioAcademico (
-    IdActividad INT NOT NULL PRIMARY KEY IDENTITY,
-    NombreActividad VARCHAR(50) NOT NULL,
-    Descripcion VARCHAR(150),
-    ValorNota NUMERIC(4, 2) DEFAULT NULL,
-    FechaInicio DATETIME2 NOT NULL DEFAULT GETDATE(),
-    FechaFin DATETIME2 NULL,
-    Id_Matricula INT NOT NULL,
-    Id_AlunonsNotas INT NOT NULL,
-    CONSTRAINT Ck_CalendarioAcademico CHECK(FechaFin >= FechaInicio),
-    CONSTRAINT Fk_CalendarioAcademico_Matriculas FOREIGN KEY (Id_Matricula) REFERENCES Academico.Matriculas(IdMatricula)
-);
-GO
--- Porque?: Ayuda a mantener la normalizacion en las tablas evitando que se repitan datos dentro de la tabla AlumnosNotas
--- Permite separar de forma organizada, las actividades, Parciales o examen final
--- Se amarra directamente a la matricula lo que permite detallar el rednidmiento del alumno
--- Asegura que el catedratico tenga que asignar distintas actividades dejando a criterio del catedratico el valor de cada actividad
--- Permite asignar notas mas especificas dentro de cada actividad utilizando datos decimales 
-
-
--- Triger que controla el total de nota que llegara a la tabla AlumnosNotas
-CREATE TRIGGER tr_ValidarNotaActividad
-ON Academico.CalendarioAcademico
-INSTEAD OF INSERT
-AS
-BEGIN
-    SET NOCOUNT ON;
-
-    -- Validar que la suma de ValorNota no exceda 100
-    IF EXISTS (
-        SELECT 1
-        FROM INSERTED i
-        WHERE i.ValorNota IS NOT NULL
-        AND (
-            ISNULL((
-                SELECT SUM(ValorNota)
-                FROM Academico.CalendarioAcademico
-                WHERE Id_AlunonsNotas = i.Id_AlunonsNotas
-            ), 0) + i.ValorNota > 100
-        )
-    )
-    BEGIN
-        RAISERROR('La suma de las notas supera el límite de 100 puntos.', 16, 1);
+        RAISERROR('La suma de las notas supera el lÃ­mite de 100 puntos.', 16, 1);
         RETURN;
     END
 
-    -- Si pasa la validación, insertar normalmente
+    -- Si pasa la validaciÃ³n, insertar normalmente
     INSERT INTO Academico.CalendarioAcademico (NombreActividad, Descripcion, ValorNota, FechaInicio, FechaFin, Id_Matricula, Id_AlunonsNotas)
     SELECT NombreActividad, Descripcion, ValorNota, FechaInicio, FechaFin, Id_Matricula, Id_AlunonsNotas 
     FROM INSERTED;
