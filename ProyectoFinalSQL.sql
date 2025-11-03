@@ -1,565 +1,113 @@
-USE Academia2022
 
 
-ALTER TABLE Academico.Alumnos
-	ALTER COLUMN CarreraID INT NOT NULL;
-GO
--- Porque: Ayuda a que no se puedan agregar alumnos sin que posean una carreara ID por defecto y debeido a la FK solo se puede asinar a una carrera existente
 
-
--- CREAMOS TABLA PARA CONTROL DE CURSOS APROBADOS
-CREATE TABLE Academico.CursosAprobados (
-	IdCursoAprobado INT NOT NULL PRIMARY KEY IDENTITY,
-	Id_Curso INT NOT NULL,
-	Id_Alumno INT NOT NULL,
-	Aprobado BIT NOT NULL DEFAULT 0,
-    FechaCreacion DATETIME DEFAULT GETDATE(),
-    FechaAprobado DATETIME NULL,
-	CONSTRAINT Fk_CursosAproados_Cursos FOREIGN KEY (Id_Curso) REFERENCES Academico.Cursos(CursoID),
-	CONSTRAINT Fk_CursosAprobados_Alumnos FOREIGN KEY (Id_Alumno) REFERENCES Academico.ALumnos(AlumnoID),
-	CONSTRAINT UQ_CursosAprobados UNIQUE (Id_Curso, Id_Alumno)
-);
-GO
--- Porque?: Mejora al control de una tabla posterior llamada PreRequisitos
-
-
--- Creamos tabla para para llevar mejor control sobre los PreRequisitos de un curso
-CREATE TABLE Academico.PreRequisitos(
-	Id_PreRequisito INT NOT NULL PRIMARY KEY IDENTITY,
-	Id_CursoRequisito INT,
-	Id_CursoActual INT NOT NULL,
-	CONSTRAINT FK_PreRequisitos_CursoRequisito FOREIGN KEY(Id_CursoRequisito) REFERENCES Academico.Cursos(CursoID),
-	CONSTRAINT Fk_PreRequisitos_CursoNuevo FOREIGN KEY(Id_CursoActual) REFERENCES Academico.Cursos(CursoID),
-	CONSTRAINT CK_CursosDistintos CHECK (Id_CursoRequisito <> Id_CursoActual)
-);
-GO
-
-
--- TRIGGER para crear automaticamente una tupla de Cursos Aprobados
-CREATE TRIGGER tr_AgregarPreRequisito
-ON Academico.Cursos
-AFTER INSERT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    -- Insertar prerequisito vacï¿½o para cada curso nuevo
-    INSERT INTO Academico.PreRequisitos (Id_CursoRequisito, Id_CursoActual, CreditosNecesarios)
-    SELECT NULL, i.CursoID
-    FROM INSERTED i;
-END;
-GO
--- Porque?: Automatiza la insersion de valores en esta tabla Cursos Aprobados, Evita que se generen errores por dupicados que no permite la 
--- CONSTRAINT UNIQUE en matriculas y CursosAprobados
-
--- Ayuda a mejorar 
-ALTER TABLE Academico.Cursos
-ADD Id_Carrera INT NOT NULL
-    CONSTRAINT FK_Cursos_Carreras FOREIGN KEY (Id_Carrera) REFERENCES Academico.Carreras(CarreraID);
-GO
-
-
--- Crea una tabla que almacena los cursos que se necesitan por carrera
-CREATE TABLE Academico.CursosPorCarrera (
-    Id_Curso INT NOT NULL,
-    Id_Carrera INT NOT NULL,
-    CONSTRAINT PK_CursosPorCarrera PRIMARY KEY (Id_Curso, Id_Carrera),
-    CONSTRAINT FK_CursosPorCarrera_Curso FOREIGN KEY (Id_Curso) REFERENCES Academico.Cursos(CursoID),
-    CONSTRAINT FK_CursosPorCarrera_Carrera FOREIGN KEY (Id_Carrera) REFERENCES Academico.Carreras(CarreraID)
-);
-GO
--- Porque?: Ayuda a buscar si los cursos se repiten por carrera lo que mantiene la normalizacion y agiliza consultas
-
-
--- Crea una tabla que suma los creditos totales de los cursos aprobados
-CREATE TABLE Academico.CreditosAlumnos(
-    IdCreditosAlumno INT PRIMARY KEY IDENTITY,
-    TotalCreditos INT NOT NULL,
-    Id_Alumno INT NOT NULL,
-    Id_Carrera INT NOT NULL
-    CONSTRAINT Fk_CreditosAlumnos_Alumnos FOREIGN KEY (Id_Alumno) REFERENCES Academico.Alumnos(AlumnoID),
-    CONSTRAINT Fk_CreditosAlumnos_Carreras FOREIGN KEY (Id_Carrera) REFERENCES Academico.Carreras(CarreraID),
-    CONSTRAINT UQ_CreditosAlumnos UNIQUE (Id_Carrera, Id_Alumno)  
-);
-GO
-
-
--- Actualiza el total de datos por alunos cuando este aprueba un curso
-CREATE TRIGGER tr_ActualizarCreditosAlumnos
-ON Academico.CursosAprobados
+-- Triger para cambiar el valor Aprobado en el curso de un alumno
+CREATE TRIGGER tr_ActualizarEstadoAprobadoDesdeNota
+ON Academico.AlumnosNotas
 AFTER UPDATE
 AS
 BEGIN
     SET NOCOUNT ON;
-    -- 1. Insertar nuevos registros en CreditosAlumnos si no existen
-    INSERT INTO Academico.CreditosAlumnos (Id_Alumno, Id_Carrera, TotalCreditos)
-    SELECT i.Id_Alumno, cc.Id_Carrera, c.CursoCreditosECTS
-    FROM INSERTED i
-    JOIN DELETED d ON i.IdCursoAprobado = d.IdCursoAprobado
-    JOIN Academico.Cursos c ON c.CursoID = i.Id_Curso
-    JOIN Academico.CursosPorCarrera cc ON cc.Id_Curso = c.CursoID
-    WHERE d.Aprobado = 0 AND i.Aprobado = 1
-    AND NOT EXISTS (
-        SELECT 1
-        FROM Academico.CreditosAlumnos ca
-        WHERE ca.Id_Alumno = i.Id_Alumno AND ca.Id_Carrera = cc.Id_Carrera
-    );
 
-    -- 2. Actualizar TotalCreditos si el registro ya existe
     UPDATE ca
-    SET ca.TotalCreditos = ca.TotalCreditos + c.CursoCreditosECTS
-    FROM Academico.CreditosAlumnos ca
-    JOIN INSERTED i ON ca.Id_Alumno = i.Id_Alumno
-    JOIN DELETED d ON i.IdCursoAprobado = d.IdCursoAprobado
-    JOIN Academico.Cursos c ON c.CursoID = i.Id_Curso
-    JOIN Academico.CursosPorCarrera cc ON cc.Id_Curso = c.CursoID
-    WHERE ca.Id_Carrera = cc.Id_Carrera
-    AND d.Aprobado = 0 AND i.Aprobado = 1;
+    SET ca.Aprobado = 1,
+        ca.FechaAprobado = GETDATE()
+    FROM Academico.CursosAprobados ca
+    JOIN INSERTED i ON i.TotalNota >= 61
+    JOIN Academico.Matriculas m ON m.IdMatricula = i.Id_Matricula
+    WHERE ca.Id_Curso = m.CursoID
+      AND ca.Id_Alumno = m.AlumnoID
+      AND ca.Aprobado = 0;
 END;
 GO
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+-- Porque?: Automatiza el proceso de saber si un alumno Aprobo o no dicho curso
+-- Evita posibles errores por el usuario
+-- Mantiene la logica del sistema de cursos
+
+
+-- Creamos una tabla que contiene las actividades hechas por un alumno en el transcurso del ciclo
+CREATE TABLE Academico.CalendarioAcademico (
+    IdActividad INT NOT NULL PRIMARY KEY IDENTITY,
+    NombreActividad VARCHAR(50) NOT NULL,
+    Descripcion VARCHAR(150),
+    ValorNota NUMERIC(4, 2) DEFAULT NULL,
+    FechaInicio DATETIME2 NOT NULL DEFAULT GETDATE(),
+    FechaFin DATETIME2 NULL,
+    Id_Matricula INT NOT NULL,
+    Id_AlunonsNotas INT NOT NULL,
+    CONSTRAINT Ck_CalendarioAcademico CHECK(FechaFin >= FechaInicio),
+    CONSTRAINT Fk_CalendarioAcademico_Matriculas FOREIGN KEY (Id_Matricula) REFERENCES Academico.Matriculas(IdMatricula)
+);
+GO
+-- Porque?: Ayuda a mantener la normalizacion en las tablas evitando que se repitan datos dentro de la tabla AlumnosNotas
+-- Permite separar de forma organizada, las actividades, Parciales o examen final
+-- Se amarra directamente a la matricula lo que permite detallar el rednidmiento del alumno
+-- Asegura que el catedratico tenga que asignar distintas actividades dejando a criterio del catedratico el valor de cada actividad
+-- Permite asignar notas mas especificas dentro de cada actividad utilizando datos decimales 
+
+
+-- Triger que controla el total de nota que llegara a la tabla AlumnosNotas
+CREATE TRIGGER tr_ValidarNotaActividad
+ON Academico.CalendarioAcademico
+INSTEAD OF INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Validar que la suma de ValorNota no exceda 100
+    IF EXISTS (
+        SELECT 1
+        FROM INSERTED i
+        WHERE i.ValorNota IS NOT NULL
+        AND (
+            ISNULL((
+                SELECT SUM(ValorNota)
+                FROM Academico.CalendarioAcademico
+                WHERE Id_AlunonsNotas = i.Id_AlunonsNotas
+            ), 0) + i.ValorNota > 100
+        )
+    )
+    BEGIN
+        RAISERROR('La suma de las notas supera el límite de 100 puntos.', 16, 1);
+        RETURN;
+    END
+
+    -- Si pasa la validación, insertar normalmente
+    INSERT INTO Academico.CalendarioAcademico (NombreActividad, Descripcion, ValorNota, FechaInicio, FechaFin, Id_Matricula, Id_AlunonsNotas)
+    SELECT NombreActividad, Descripcion, ValorNota, FechaInicio, FechaFin, Id_Matricula, Id_AlunonsNotas 
+    FROM INSERTED;
+END;
+GO
+-- Porque?: Evita que el total de actividades superen los 100 puntos
+-- Automatiza el control sobre la nota final que tendra el estudiante
+-- Evita que se produzcan errores humanos al momento de asignar notas
+-- Permite que el catedratico asigne actividades para que el alumno pueda ganar puntos extra
+
+
+-- Sp para cerrar las notas al final del semestre
+CREATE PROCEDURE Academico.sp_SincronizarNotasAlumnos
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- Actualizar TotalNota en AlumnosNotas con la suma de ValorNota desde CalendarioAcademico
+    UPDATE an
+    SET an.TotalNota = 
+        CASE 
+            WHEN SUMA.NotaTotal > 100 THEN 100
+            ELSE SUMA.NotaTotal
+        END
+    FROM Academico.AlumnosNotas an
+    INNER JOIN (
+        SELECT
+            Id_AlunonsNotas,
+            CAST(SUM(CAST(ValorNota AS INT)) AS INT) AS NotaTotal
+        FROM Academico.CalendarioAcademico
+        WHERE ValorNota IS NOT NULL
+        GROUP BY Id_AlunonsNotas
+    ) AS SUMA ON SUMA.Id_AlunonsNotas = an.IdNota;
+END;
+GO
+-- Porque?: Permite sincronizar el total acumulado de las notas al final del semestre y almacenarlo en la tabla AlumnosNotas
+-- Realiza conversion de datos dentro de la tabla CalendarioAcademico para que al final se agregue un valor entero dentro de la tabla AlumnosNotas
+-- Permite que se activen triggers que mantienen la veracidad de los datos en la tabla gantizando saber cuando un alumno aprobo
+-- Evita ejecuciones inesperadas y realizar modificaciones innecesarias dentro de la tabla por uso de triggers
