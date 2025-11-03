@@ -42,7 +42,7 @@ AFTER INSERT
 AS
 BEGIN
     SET NOCOUNT ON;
-    -- Insertar prerequisito vacío para cada curso nuevo
+    -- Insertar prerequisito vacÃ­o para cada curso nuevo
     INSERT INTO Academico.PreRequisitos (Id_CursoRequisito, Id_CursoActual, CreditosNecesarios)
     SELECT NULL, i.CursoID
     FROM INSERTED i;
@@ -135,7 +135,7 @@ AFTER INSERT
 AS
 BEGIN
     SET NOCOUNT ON;
-    -- Validar si el alumno tiene los créditos necesarios para el curso
+    -- Validar si el alumno tiene los crÃ©ditos necesarios para el curso
     IF EXISTS (
         SELECT 1
         FROM INSERTED i
@@ -144,7 +144,7 @@ BEGIN
         WHERE ca.TotalCreditos < pr.CreditosNecesarios
     )
     BEGIN
-        RAISERROR('El alumno no cumple con los créditos necesarios para matricularse en este curso.', 16, 1);
+        RAISERROR('El alumno no cumple con los crÃ©ditos necesarios para matricularse en este curso.', 16, 1);
         ROLLBACK TRANSACTION;
         RETURN;
     END
@@ -161,7 +161,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Insertar en CursosAprobados solo si no existe ya la combinación (Id_Curso, Id_Alumno)
+    -- Insertar en CursosAprobados solo si no existe ya la combinaciÃ³n (Id_Curso, Id_Alumno)
     INSERT INTO Academico.CursosAprobados (Id_Curso, Id_Alumno)
     SELECT i.CursoID, i.AlumnoID
     FROM INSERTED i
@@ -218,7 +218,7 @@ AFTER INSERT
 AS
 BEGIN
     SET NOCOUNT ON;
-    -- Insertar nota inicial con TotalNota = 0 para cada nueva matrícula
+    -- Insertar nota inicial con TotalNota = 0 para cada nueva matrÃ­cula
     INSERT INTO Academico.AlumnosNotas (Id_Matricula, TotalNota)
     SELECT i.IdMatricula, 0
     FROM INSERTED i;
@@ -296,11 +296,11 @@ BEGIN
         )
     )
     BEGIN
-        RAISERROR('La suma de las notas supera el límite de 100 puntos.', 16, 1);
+        RAISERROR('La suma de las notas supera el lÃ­mite de 100 puntos.', 16, 1);
         RETURN;
     END
 
-    -- Si pasa la validación, insertar normalmente
+    -- Si pasa la validaciÃ³n, insertar normalmente
     INSERT INTO Academico.CalendarioAcademico (NombreActividad, Descripcion, ValorNota, FechaInicio, FechaFin, Id_Matricula, Id_AlunonsNotas)
     SELECT NombreActividad, Descripcion, ValorNota, FechaInicio, FechaFin, Id_Matricula, Id_AlunonsNotas 
     FROM INSERTED;
@@ -358,7 +358,7 @@ AFTER INSERT
 AS
 BEGIN
     SET NOCOUNT ON;
-    -- Validar si el alumno tiene los créditos necesarios para el curso
+    -- Validar si el alumno tiene los crÃ©ditos necesarios para el curso
     IF EXISTS (
         SELECT 1
         FROM INSERTED i
@@ -367,7 +367,7 @@ BEGIN
         WHERE ca.TotalCreditos < pr.CreditosNecesarios
     )
     BEGIN
-        RAISERROR('El alumno no cumple con los créditos necesarios para matricularse en este curso.', 16, 1);
+        RAISERROR('El alumno no cumple con los crÃ©ditos necesarios para matricularse en este curso.', 16, 1);
         ROLLBACK TRANSACTION;
         RETURN;
     END
@@ -384,7 +384,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Insertar en CursosAprobados solo si no existe ya la combinación (Id_Curso, Id_Alumno)
+    -- Insertar en CursosAprobados solo si no existe ya la combinaciÃ³n (Id_Curso, Id_Alumno)
     INSERT INTO Academico.CursosAprobados (Id_Curso, Id_Alumno)
     SELECT i.CursoID, i.AlumnoID
     FROM INSERTED i
@@ -441,7 +441,7 @@ AFTER INSERT
 AS
 BEGIN
     SET NOCOUNT ON;
-    -- Insertar nota inicial con TotalNota = 0 para cada nueva matrícula
+    -- Insertar nota inicial con TotalNota = 0 para cada nueva matrÃ­cula
     INSERT INTO Academico.AlumnosNotas (Id_Matricula, TotalNota)
     SELECT i.IdMatricula, 0
     FROM INSERTED i;
@@ -449,9 +449,3 @@ END;
 GO
 -- Necesario para evitar problemas que la tupla no exista y luego le genere problemas al catedratico al momento de intentar ingresar una nota
 -- Automatiza el proceso de creacion de esta tupla
-
-
-
--- Triger para cambiar el valor Aprobado en el curso de un alumno
-CREATE TRIGGER tr_ActualizarEstadoAprobadoDesdeNota
-ON Academico.AlumnosNotas
